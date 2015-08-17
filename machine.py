@@ -23,11 +23,15 @@ class MipsMachine:
         self.lo = u_to_bits(0)
         self.ir = u_to_bits(0)
 
-    def run(self, type, filename, start):
+    def run(self, type, filename, start, debug):
         self.setup(type) 
         try:
-            self.load(filename, start) # TODO: eventually add starting addr
-            self.fetch_execute_cycle(start)
+            self.load(filename, start)
+            if debug:
+                import window
+                window.setup(self, start)
+            else:
+                self.fetch_execute_cycle(None, start)
         except Exception as e:
             print('ERROR: ' + str(e) + '. pc = {0}'.format(hex(self.pc)))
             raise
@@ -80,21 +84,42 @@ class MipsMachine:
             self.mem[ind] = word
             ind += 1
 
-    def fetch_execute_cycle(self, start):
-        print('===== running MIPS program =====')
-        returnAddr = Bits(int=-4, length=word_size)
-        self.regs[31] = returnAddr
+    def fetch_execute_cycle(self, d_scr, start):
+        return_addr = Bits(int=-4, length=word_size)
+        self.regs[31] = return_addr
         self.pc = start
+
+        d_win = None
+        if d_scr is not None:
+            from window import Window
+            d_win = Window(d_scr)
+        else:
+            print('===== running MIPS program =====')
+
+        show_debug = d_win is not None
+
         while True:
             if self.pc // 4 == self.word_count:
                 raise RuntimeError('pc reached end of memory')
+
+            if show_debug:
+                inp = d_win.tick(self.pc, self.mem, self.regs) # w/updated data
+                if inp is 'q':
+                    show_debug = False
+                d_win.reset_changed()
+            if self.pc == return_addr.uint:
+                if show_debug:
+                    while True:
+                        if d_win.tick(self.pc, self.mem, self.regs) == 'q':
+                            return
+
             self.ir = self.mem[self.pc // 4].uint
             self.pc += 4
-            self.execute(self.ir)
-            if self.pc == returnAddr.uint:
-                return
+            self.execute(self.ir, d_win)
    
-    def execute(self, ir):
+    def execute(self, ir, d_win):
+        debug = d_win is not None
+
         start_ctrl_bits = (ir >> 26) & 0b111111
         end_ctrl_bits = ir & 0b111111
         s_reg_b = (ir >> 21) & 0b11111
@@ -105,8 +130,14 @@ class MipsMachine:
         if start_ctrl_bits == 0: # register command
             if end_ctrl_bits == 0b100000: # add
                 self.regs[d_reg_b] = i_to_bits(self.regs[s_reg_b].int + self.regs[t_reg_b].int)
+                
+                if debug:
+                    d_win.c_reg = d_reg_b
             elif end_ctrl_bits == 0b100010: # sub
                 self.regs[d_reg_b] = i_to_bits(self.regs[s_reg_b].int - self.regs[t_reg_b].int)
+                
+                if debug:
+                    d_win.changed_reg(d_reg_b)
             elif end_ctrl_bits == 0b011000: # mult
                 prod = self.regs[s_reg_b].int * self.regs[t_reg_b].int
                 self.lo = u_to_bits(prod & 0xffffffff) # not i_to_bits because & converts to uint
@@ -123,27 +154,45 @@ class MipsMachine:
                 self.lo = u_to_bits(self.regs[s_reg_b].uint // self.regs[t_reg_b].uint)
             elif end_ctrl_bits == 0b010000: # mfhi
                 self.regs[d_reg_b] = self.hi
+                
+                if debug:
+                    d_win.c_reg = d_reg_b
             elif end_ctrl_bits == 0b010010: # mflo
                 self.regs[d_reg_b] = self.lo
+                
+                if debug:
+                    d_win.c_reg = d_reg_b
             elif end_ctrl_bits == 0b010100: # lis
                 self.regs[d_reg_b] = self.mem[self.pc // 4]
                 self.pc += 4
+                
+                if debug:
+                    d_win.c_reg = d_reg_b
             elif end_ctrl_bits == 0b101010: # slt
                 if self.regs[s_reg_b].int < self.regs[t_reg_b].int:
                     self.regs[d_reg_b] = u_to_bits(1)
                 else:
                     self.regs[d_reg_b] = u_to_bits(0)
+
+                if debug:
+                    d_win.c_reg = d_reg_b
             elif end_ctrl_bits == 0b101011: # sltu    
                 if self.regs[s_reg_b].uint < self.regs[t_reg_b].uint:
                     self.regs[d_reg_b] = u_to_bits(1)
                 else:
                     self.regs[d_reg_b] = u_to_bits(0)
+
+                if debug:
+                    d_win.c_reg = d_reg_b
             elif end_ctrl_bits == 0b001000: # jr
                 self.pc = self.regs[s_reg_b].uint
             elif end_ctrl_bits == 0b001001: # jalr
                 temp = self.regs[s_reg_b].uint
                 self.regs[31] = u_to_bits(self.pc)
                 self.pc = temp
+
+                if debug:
+                    d_win.c_reg = 31
             else:
                 raise RuntimeError('register - unrecognised control bits ' + str(bin(end_ctrl_bits)))
         elif start_ctrl_bits == 0b100011 or start_ctrl_bits == 0b101011: # lw / sw
@@ -156,14 +205,26 @@ class MipsMachine:
             ind = addr // 4
             if start_ctrl_bits == 0b100011: # lw
                 if addr == 0xffff0004:
-                    self.regs[t_reg_b] = u_to_bits(ord(input('')))
+                    if debug:
+                        self.regs[t_reg_b] = u_to_bits(ord(d_win.get_inp()))
+                    else:
+                        self.regs[t_reg_b] = u_to_bits(ord(input('')))
                 else:
                     self.regs[t_reg_b] = self.mem[ind]
+
+                if debug:
+                    d_win.c_reg = t_reg_b
             else:
                 if addr == 0xffff000c:
-                    print(chr(self.regs[t_reg_b].int))
+                    if debug:
+                        d_win.print_stdout(chr(self.regs[t_reg_b].int))
+                    else:
+                        print(chr(self.regs[t_reg_b].int))
                 else:
                     self.mem[ind] = self.regs[t_reg_b]
+                
+                if debug:
+                    d_win.c_mem = ind
 
         elif start_ctrl_bits == 0b000100: # beq
             if self.regs[s_reg_b].int == self.regs[t_reg_b].int:

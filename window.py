@@ -1,24 +1,26 @@
 import curses
 from curses import wrapper
 
+# Add goto maybe?
+# Maybe make stdin and goto members of the same base class?
+
 # This one will be just like a popup
 class StdinWindow:
     def __init__(self):
-        h, w = 5, 8
+        h, w = 4, 10
         px = (curses.COLS - w) // 2
         py = (curses.LINES - h) // 2
 
         self.win = curses.newwin(h, w, py, px)
         self.h, self.w = self.win.getmaxyx()
-        self.active = True
-        self.formatstr = ' {:^' + str(self.w - 1) + '}'
+        self.active = False
+        self.formatstr = ' {:^' + str(self.w - 3) + '}'
 
     def refresh(self):
         if self.active:
             self.win.clear()
-            self.win.addstr(0, 0, self.formatstr.format(' '), curses.A_REVERSE)
-            self.win.addstr(1, 0, self.formatstr.format('input:'), curses.A_REVERSE)
-            self.win.addstr(2, 0, self.formatstr.format(' '), curses.A_REVERSE)
+            self.win.addstr(1, 1, self.formatstr.format('input:'), curses.A_REVERSE)
+            self.win.addstr(2, 1, self.formatstr.format(' '), curses.A_REVERSE)
             self.win.refresh()
 
 class StdoutWindow:
@@ -54,14 +56,19 @@ class RegWindow:
         self.start_r = 0
         self.r_p_c = self.lines - 2 # regs per col
 
-    def display_regs(self):
+    def display_regs(self, regs, c_reg):
         c_shift = 0
         c_width = 16
         i = self.start_r
         while i < 32:
             if c_shift + c_width > self.cols:
                 break
-            self.win.addstr(i % self.r_p_c + 1, 1 + c_shift, '${0:<2} = {1:<8}'.format(i, 10))
+            line = '${0:<2} = {1:<8}'.format(i, regs[i].hex)
+            if c_reg == i:
+                self.win.addstr(i % self.r_p_c + 1, 1 + c_shift, line, curses.color_pair(1))
+            else:
+                self.win.addstr(i % self.r_p_c + 1, 1 + c_shift, line)
+            
             i += 1
             if i % self.r_p_c == 0:
                 c_shift += c_width
@@ -74,10 +81,10 @@ class RegWindow:
         if self.start_r > 0:
             self.start_r -= self.r_p_c
 
-    def refresh(self):
+    def refresh(self, regs, c_reg):
         self.win.clear()
         self.win.border()
-        self.display_regs()
+        self.display_regs(regs, c_reg)
         self.win.refresh()
 
 class MemWindow:
@@ -86,74 +93,108 @@ class MemWindow:
         pb = 10
         px = 5
         h, w = curses.LINES - (pt + pb), curses.COLS - (px * 2)
-        self.col_str = '| {0:<3} | {1:<10} | {2:<10} | {3:<10} | {4:<'+ str(w) +'} |'
+        self.col_str = '| {0:<3} | {1:<10} | {2:<10} | {3:<'+ str(w) +'} |'
 
         self.win = curses.newwin(h - 1, w - 1, pt, px)
         self.lines, self.cols = self.win.getmaxyx()
-        self.start_i = 5 # TODO: might need to adjust for starting ind
+        self.start_i = 0 # TODO: might need to adjust for starting ind
 
     def shift_up(self):
         if self.start_i > 0:
             self.start_i -= 1
 
-    def shift_down(self):
-        if self.start_i + self.lines - 3 < 100:
+    def shift_down(self, maxlen):
+        if self.start_i + self.lines - 3 < maxlen:
             self.start_i += 1
 
-    def draw_cols(self):
-        for i in range(self.start_i, self.lines - 3 + self.start_i):
-            self.win.addstr(1 + i - self.start_i, 0, self.col_str.format(str(i), '0', '0', '0', 's')[:self.cols])
+    def draw_cols(self, pc, mem, memlen, c_mem):
+        pc_i = pc // 4
+        for i in range(self.start_i, min(self.lines - 3 + self.start_i, memlen)):
+            if pc_i == i:
+                pc_p = '->'
+            else:
+                pc_p = ''
+            line = self.col_str.format(pc_p, hex(i * 4), mem[i].hex, mem[i].bin)[:self.cols]
+            if c_mem == i:
+                self.win.addstr(1 + i - self.start_i, 0, line, curses.color_pair(1))
+            else:
+                self.win.addstr(1 + i - self.start_i, 0, line)
 
-    def refresh(self):
-        title_str = self.col_str.format('pc', 'addr', 'src', 'hex', 'bin')[:self.cols]
+    def refresh(self, pc, mem, memlen, c_mem):
+        title_str = self.col_str.format('pc', 'addr', 'hex', 'bin')[:self.cols]
 
         self.win.clear()
         self.win.addstr(0, 0, title_str, curses.A_REVERSE)
-        self.draw_cols()
+        self.draw_cols(pc, mem, memlen, c_mem)
         self.win.addstr(self.lines - 2, 0, title_str, curses.A_REVERSE)
         self.win.refresh()
 
-def debugger_main(scr):
-    if curses.LINES < 30 or curses.COLS < 30:
-        raise Exception('ERROR: terminal window too small for debugger')
-    mem_window = MemWindow()
-    reg_window = RegWindow()
-    out_window = StdoutWindow()
-    in_window = StdinWindow()
+class Window:
+    def __init__(self, screen):
+        if curses.LINES < 30 or curses.COLS < 30:
+            raise Exception('ERROR: terminal window too small for debugger')
+        self.scr = screen
+        self.mem_window = MemWindow()
+        self.reg_window = RegWindow()
+        self.out_window = StdoutWindow()
+        self.in_window = StdinWindow()
 
-    while True:
-        scr.erase()
-        scr.refresh()
-        mem_window.refresh()
-        reg_window.refresh()
-        out_window.refresh()
-        in_window.refresh()
+        # for coloring, gets adjusted in execute() of the fec
+        self.c_mem = -1
+        self.c_reg = -1
+        curses.init_pair(1, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
 
-        if in_window.active:
-            c = scr.getkey()
-            in_window.active = False
-            continue # TODO fix
+    def reset_changed(self):
+        self.c_mem = -1
+        self.c_reg = -1
 
-        c = scr.getch()
-        if c == ord('q'): 
-            break
-        elif c == 27: # esc or alt
-            scr.nodelay(True)
-            n = scr.getch()
-            if n == -1:
-                break
-            scr.nodelay(False)
-        elif c == curses.KEY_UP:
-            mem_window.shift_up()
-        elif c == curses.KEY_DOWN:
-            mem_window.shift_down()
-        elif c == curses.KEY_RIGHT:
-            reg_window.shift_right()
-        elif c == curses.KEY_LEFT:
-            reg_window.shift_left()
-        elif c == ord('s'):
-            out_window.change_active()
+    def get_inp(self):
+        # might not need the whole refresh
+        self.scr.erase()
+        self.scr.refresh()
+        self.in_window.active = True
+        self.in_window.refresh()
+        c = self.scr.getkey()
+        self.in_window.active = False
+        return c
 
-        # space is for step
+    def print_stdout(self, out):
+        # for now do nothing
+        pass
 
-wrapper(debugger_main)
+    def tick(self, pc, mem, regs):
+        memlen = len(mem) 
+        while True:
+            self.scr.erase()
+            self.scr.refresh()
+            self.mem_window.refresh(pc, mem, memlen, self.c_mem)
+            self.reg_window.refresh(regs, self.c_reg)
+            self.out_window.refresh()
+            self.in_window.refresh()
+
+
+            c = self.scr.getch()
+            if c == ord('q'): 
+                return 'q'
+            elif c == 27: # esc or alt
+                self.scr.nodelay(True)
+                n = self.scr.getch()
+                if n == -1:
+                    return 'q'
+                self.scr.nodelay(False)
+            elif c == curses.KEY_UP:
+                self.mem_window.shift_up()
+            elif c == curses.KEY_DOWN:
+                self.mem_window.shift_down(memlen)
+            elif c == curses.KEY_RIGHT:
+                self.reg_window.shift_right()
+            elif c == curses.KEY_LEFT:
+                self.reg_window.shift_left()
+            elif c == ord('s'):
+                self.out_window.change_active()
+            elif c == ord(' ') or c == ord('n'):
+                return ' '
+            
+
+def setup(machine, start):
+    wrapper(machine.fetch_execute_cycle, start) # to send the screen back

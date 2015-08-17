@@ -33,10 +33,11 @@ def main(args):
         print(e)
         print('mips.py twoints|array|noinp <filename> [-d] [-m <# words>] [-s <start addr>]')
         return
+
     machine = MipsMachine(options['memory'])
-    machine.run(options['type'], options['filename'], options['start'])
+    machine.run(options['type'], options['filename'], options['start'], True) #options['debug']
     machine.print_results(options['display'])
-    
+
 if __name__ == "__main__":
     main(sys.argv[1:])
 
