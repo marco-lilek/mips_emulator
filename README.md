@@ -1,5 +1,5 @@
 # How to Install
-You'll need [python 3.4.3](https://www.python.org/downloads/) or better. 
+You'll need [python 3.4.3](https://www.python.org/downloads/) or newer. 
 
 The emulator also uses [bitstring](https://pypi.python.org/pypi/bitstring/3.1.3). In order to install it just execute the command `pip install bitstring`.
 
