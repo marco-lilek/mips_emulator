@@ -18,13 +18,13 @@ If you want to run the debugger, you'll also need **curses**. To get this on Win
 - `[-d]` display memory dump upon program completion (default: off)
 - `[-m <# words>]` size of memory available **in words** (default: 100)
 - `[-s <start addr>]` starting address of the program in memory (must be a multiple of 4) (default 0)
-- `[-D]` run **debugger**
+- `[-D]` run the **debugger**
 
 ### Debugger Controls
 - `UP/PAGE UP DOWN/PAGE DOWN` to shift through memory (PAGE UP/PAGE DOWN allow you to move quicker)
 - `LEFT/RIGHT` to cycle through the registers
 - `s` brings up stdout. Press `s` again to close it
-- `q` to quit
+- `q` to close the debugger
 - `SPACE` to execute the next instruction
 
 # Screenshots
