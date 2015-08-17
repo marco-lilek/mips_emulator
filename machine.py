@@ -37,7 +37,6 @@ class MipsMachine:
             raise
         else:
             print('execution completed successfully')
-            print()
 
     def setup(self, type):
         self.regs[30] = Bits(int=self.word_count * 4, length=word_size)
@@ -112,6 +111,8 @@ class MipsMachine:
                     while True:
                         if d_win.tick(self.pc, self.mem, self.regs) == 'q':
                             return
+                else:
+                    return
 
             self.ir = self.mem[self.pc // 4].uint
             self.pc += 4
@@ -137,7 +138,7 @@ class MipsMachine:
                 self.regs[d_reg_b] = i_to_bits(self.regs[s_reg_b].int - self.regs[t_reg_b].int)
                 
                 if debug:
-                    d_win.changed_reg(d_reg_b)
+                    d_win.c_reg = d_reg_b
             elif end_ctrl_bits == 0b011000: # mult
                 prod = self.regs[s_reg_b].int * self.regs[t_reg_b].int
                 self.lo = u_to_bits(prod & 0xffffffff) # not i_to_bits because & converts to uint

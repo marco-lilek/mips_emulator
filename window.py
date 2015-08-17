@@ -1,8 +1,6 @@
 import curses
+import textwrap
 from curses import wrapper
-
-# Add goto maybe?
-# Maybe make stdin and goto members of the same base class?
 
 # This one will be just like a popup
 class StdinWindow:
@@ -32,6 +30,15 @@ class StdoutWindow:
         self.win = curses.newwin(h, w, py, px)
         self.h, self.w = self.win.getmaxyx()
         self.active = False
+        self.start_l = 0
+
+    def shift_up(self):
+        if self.start_l > 0:
+            self.start_l -= 1
+
+    def shift_down(self, stdout):
+        if self.start_l + self.h - 2< len(textwrap.wrap(stdout, self.w - 2)): 
+            self.start_l += 1
 
     def change_active(self):
         if self.active:
@@ -39,11 +46,17 @@ class StdoutWindow:
         else:
             self.active = True
 
-    def refresh(self):
+    def refresh(self, stdout):
         if self.active:
             self.win.clear()
             self.win.border()
             self.win.addstr((' {:^' + str(self.w - 1) + '}').format('stdout'), curses.A_REVERSE)
+            to_write = textwrap.wrap(stdout, self.w - 2)
+            t_w_l = len(to_write)
+            for h in range(self.h - 2):
+                if h + self.start_l < t_w_l:
+                    self.win.addstr(h + 1, 1, to_write[h + self.start_l])
+
             self.win.refresh()
 
 class RegWindow:
@@ -144,6 +157,9 @@ class Window:
         self.c_reg = -1
         curses.init_pair(1, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
 
+        # for stdout
+        self.stdout = ''
+
     def reset_changed(self):
         self.c_mem = -1
         self.c_reg = -1
@@ -159,8 +175,7 @@ class Window:
         return c
 
     def print_stdout(self, out):
-        # for now do nothing
-        pass
+        self.stdout += out
 
     def tick(self, pc, mem, regs):
         memlen = len(mem) 
@@ -169,9 +184,8 @@ class Window:
             self.scr.refresh()
             self.mem_window.refresh(pc, mem, memlen, self.c_mem)
             self.reg_window.refresh(regs, self.c_reg)
-            self.out_window.refresh()
+            self.out_window.refresh(self.stdout)
             self.in_window.refresh()
-
 
             c = self.scr.getch()
             if c == ord('q'): 
@@ -183,9 +197,15 @@ class Window:
                     return 'q'
                 self.scr.nodelay(False)
             elif c == curses.KEY_UP:
-                self.mem_window.shift_up()
+                if self.out_window.active:
+                    self.out_window.shift_up()
+                else:
+                    self.mem_window.shift_up()
             elif c == curses.KEY_DOWN:
-                self.mem_window.shift_down(memlen)
+                if self.out_window.active:
+                    self.out_window.shift_down(self.stdout)
+                else:
+                    self.mem_window.shift_down(memlen)
             elif c == curses.KEY_RIGHT:
                 self.reg_window.shift_right()
             elif c == curses.KEY_LEFT:
