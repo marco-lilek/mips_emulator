@@ -2,7 +2,6 @@ import curses
 import textwrap
 from curses import wrapper
 
-# This one will be just like a popup
 class StdinWindow:
     def __init__(self):
         h, w = 4, 10
@@ -32,13 +31,13 @@ class StdoutWindow:
         self.active = False
         self.start_l = 0
 
-    def shift_up(self):
-        if self.start_l > 0:
-            self.start_l -= 1
+    def shift_up(self, amt = 1):
+        if self.start_l - amt >= 0:
+            self.start_l -= amt
 
-    def shift_down(self, stdout):
-        if self.start_l + self.h - 2< len(textwrap.wrap(stdout, self.w - 2)): 
-            self.start_l += 1
+    def shift_down(self, stdout, amt = 1):
+        if self.start_l + self.h - 2 + amt <= len(textwrap.wrap(stdout, self.w - 2)): 
+            self.start_l += amt
 
     def change_active(self):
         if self.active:
@@ -112,13 +111,13 @@ class MemWindow:
         self.lines, self.cols = self.win.getmaxyx()
         self.start_i = 0 # TODO: might need to adjust for starting ind
 
-    def shift_up(self):
-        if self.start_i > 0:
-            self.start_i -= 1
+    def shift_up(self, amt = 1):
+        if self.start_i - amt >= 0:
+            self.start_i -= amt
 
-    def shift_down(self, maxlen):
-        if self.start_i + self.lines - 3 < maxlen:
-            self.start_i += 1
+    def shift_down(self, maxlen, amt = 1):
+        if self.start_i + self.lines - 3 + amt <= maxlen:
+            self.start_i += amt
 
     def draw_cols(self, pc, mem, memlen, c_mem):
         pc_i = pc // 4
@@ -196,16 +195,24 @@ class Window:
                 if n == -1:
                     return 'q'
                 self.scr.nodelay(False)
-            elif c == curses.KEY_UP:
+            elif c == curses.KEY_UP or c == curses.KEY_PPAGE:
+                amt = 1
+                if c == curses.KEY_PPAGE:
+                    amt = 5
+
                 if self.out_window.active:
-                    self.out_window.shift_up()
+                    self.out_window.shift_up(amt)
                 else:
-                    self.mem_window.shift_up()
-            elif c == curses.KEY_DOWN:
+                    self.mem_window.shift_up(amt)
+            elif c == curses.KEY_DOWN or c == curses.KEY_NPAGE:
+                amt = 1
+                if c == curses.KEY_NPAGE:
+                    amt = 5
+
                 if self.out_window.active:
-                    self.out_window.shift_down(self.stdout)
+                    self.out_window.shift_down(self.stdout, amt)
                 else:
-                    self.mem_window.shift_down(memlen)
+                    self.mem_window.shift_down(memlen, amt)
             elif c == curses.KEY_RIGHT:
                 self.reg_window.shift_right()
             elif c == curses.KEY_LEFT:
@@ -216,5 +223,5 @@ class Window:
                 return ' '
             
 
-def setup(machine, start):
+def setup_and_call_fec(machine, start):
     wrapper(machine.fetch_execute_cycle, start) # to send the screen back

@@ -16,6 +16,7 @@ def i_to_bits(num):
 class MipsMachine:
     def __init__(self, word_count):
         self.word_count = word_count
+        self.src_lines = [] # may or may not get filled in
         self.pc = 0
         self.mem = [u_to_bits(0)] * word_count
         self.regs = [u_to_bits(0)] * 32
@@ -29,7 +30,7 @@ class MipsMachine:
             self.load(filename, start)
             if debug:
                 import window
-                window.setup(self, start)
+                window.setup_and_call_fec(self, start)
             else:
                 self.fetch_execute_cycle(None, start)
         except Exception as e:
@@ -70,6 +71,7 @@ class MipsMachine:
     
     def load(self, filename, start):
         stream = ConstBitStream(filename=filename)
+
         if stream.len % 4 != 0:
             raise IOError('file length is not a multiple of 4')
         if start % 4 != 0:
