@@ -29,9 +29,9 @@ If you want to run the debugger, you'll also need **curses**. To get this on Win
 
 # Screenshots
 
-![screen1](/screenshots/screen1.png)
-![screen2](/screenshots/screen2.png)
-![screen3](/screenshots/screen3.png)
+[screen1](/screenshots/screen1.png)
+[screen2](/screenshots/screen2.png)
+[screen3](/screenshots/screen3.png)
 
 # Contact
 
