@@ -37,3 +37,5 @@ If you want to run the debugger, you'll also need **curses**. To get this on Win
 
 Name: Marco Lilek
 Email: marco@lilek.ca
+
+Feel free to contact me if you run into any bugs/errors, and I'll do my best to resolve them as quickly as possible.
