@@ -1,3 +1,9 @@
+# Screenshots
+
+[screen1](/screenshots/screen1.png)
+[screen2](/screenshots/screen2.png)
+[screen3](/screenshots/screen3.png)
+
 # How to Install
 You'll need [python 3.4.3](https://www.python.org/downloads/) or newer. 
 
@@ -26,12 +32,6 @@ If you want to run the debugger, you'll also need **curses**. To get this on Win
 - `s` brings up stdout. Press `s` again to close it
 - `q` to close the debugger
 - `SPACE` to execute the next instruction
-
-# Screenshots
-
-[screen1](/screenshots/screen1.png)
-[screen2](/screenshots/screen2.png)
-[screen3](/screenshots/screen3.png)
 
 # Contact
 
